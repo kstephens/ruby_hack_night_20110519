@@ -3,13 +3,13 @@ require 'pp'
 
 #file_filters = ARGV.dup
 file_changes = { }
-directory_changes = { }
+dir_changes = { }
 verbose = false
 cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
 
 lines = 0
 File.popen(cmd, "r") do | f |
-  until f.eof?
+  until f.eof? # commits loop:
     line = f.readline.chomp!; lines += 1
     puts "read line #{lines}: #{line.inspect}" if verbose
     commit_id, date, comment, branch_info, user = line.split(' | ')
@@ -19,15 +19,30 @@ File.popen(cmd, "r") do | f |
       puts "  comment = #{comment.inspect}"
       puts "  user = #{user.inspect}"
     end
-    until f.eof?
+    until f.eof? # files in commit loop:
       line = f.readline.chomp!; lines += 1
       break if line.empty?
       puts "read line #{lines}: #{line.inspect}" if verbose
       file_name = line
       file_changes[file_name] ||= 0
       file_changes[file_name] += 1
+
+      dir_name = File.dirname(file_name)
+      dir_changes[dir_name] ||= 0
+      dir_changes[dir_name] += 1
     end
   end
 end
-pp [ :file_changes=, file_changes ]
- 
+
+def print_totals hash, title
+  puts "Changes by file:"
+  hash.keys.sort.each do | name |
+    n = hash[name]
+    name = "./#{name}" unless name =~ %r{/}
+    puts '%6d %s' % [ n, name ]
+  end
+end
+
+print_totals file_changes, "Changes by file:"
+print_totals dir_changes, "Changes by directory:"
+
