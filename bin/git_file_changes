@@ -4,23 +4,25 @@ require 'pp'
 #file_filters = ARGV.dup
 file_changes = { }
 directory_changes = { }
-
+verbose = false
 cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
 
 lines = 0
 File.popen(cmd, "r") do | f |
   until f.eof?
     line = f.readline.chomp!; lines += 1
-    puts "read line #{lines}: #{line.inspect}"
+    puts "read line #{lines}: #{line.inspect}" if verbose
     commit_id, date, comment, branch_info, user = line.split(' | ')
-    puts "  commit_id = #{commit_id.inspect}"
-    puts "  date = #{date.inspect}"
-    puts "  comment = #{comment.inspect}"
-    puts "  user = #{user.inspect}"
+    if verbose
+      puts "  commit_id = #{commit_id.inspect}"
+      puts "  date = #{date.inspect}"
+      puts "  comment = #{comment.inspect}"
+      puts "  user = #{user.inspect}"
+    end
     until f.eof?
       line = f.readline.chomp!; lines += 1
       break if line.empty?
-      puts "read line #{lines}: #{line.inspect}"
+      puts "read line #{lines}: #{line.inspect}" if verbose
       file_name = line
       file_changes[file_name] ||= 0
       file_changes[file_name] += 1
