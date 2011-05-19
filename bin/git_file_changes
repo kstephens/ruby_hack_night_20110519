@@ -1,16 +1,31 @@
 #!/usr/bin/env ruby
+require 'pp'
 
 #file_filters = ARGV.dup
 file_changes = { }
 directory_changes = { }
 
-cmd = %Q{git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only}
+cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
 
 lines = 0
-File.popen(cmd, "r") do | io |
-  until io.eof?
-    lines += 1
-    line = io.readline
-    puts "read line #{lines}: #{line}"
+File.popen(cmd, "r") do | f |
+  until f.eof?
+    line = f.readline.chomp!; lines += 1
+    puts "read line #{lines}: #{line.inspect}"
+    commit_id, date, comment, branch_info, user = line.split(' | ')
+    puts "  commit_id = #{commit_id.inspect}"
+    puts "  date = #{date.inspect}"
+    puts "  comment = #{comment.inspect}"
+    puts "  user = #{user.inspect}"
+    until f.eof?
+      line = f.readline.chomp!; lines += 1
+      break if line.empty?
+      puts "read line #{lines}: #{line.inspect}"
+      file_name = line
+      file_changes[file_name] ||= 0
+      file_changes[file_name] += 1
+    end
   end
 end
+pp [ :file_changes=, file_changes ]
+ 
