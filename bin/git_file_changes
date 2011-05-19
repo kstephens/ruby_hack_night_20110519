@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+
+file_filters = ARGV
+file_changes = { }
+directory_changes = { }
+cmd = %Q{git log --pretty=format'%h | %ad | %s | %d | %an' --date=short --name-only}
+File.popen(cmd, "r") do | in |
+  puts in
+end
