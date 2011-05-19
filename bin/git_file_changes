@@ -1,9 +1,16 @@
 #!/usr/bin/env ruby
 
-file_filters = ARGV
+#file_filters = ARGV.dup
 file_changes = { }
 directory_changes = { }
-cmd = %Q{git log --pretty=format'%h | %ad | %s | %d | %an' --date=short --name-only}
-File.popen(cmd, "r") do | in |
-  puts in
+
+cmd = %Q{git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only}
+
+lines = 0
+File.popen(cmd, "r") do | io |
+  until io.eof?
+    lines += 1
+    line = io.readline
+    puts "read line #{lines}: #{line}"
+  end
 end
