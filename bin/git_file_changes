@@ -1,7 +1,4 @@
 #!/usr/bin/env ruby
-require 'pp'
-
-verbose = false
 
 ######################################################################
 
@@ -25,81 +22,58 @@ until args.empty?
   end
 end
 
-#puts "filters = #{filters.inspect}" if verbose
 filters.map! do | f | 
   f = add_current_dir f
-  if f[-1, 1] == '/'
-    f = %r{\A#{Regexp.escape(f)}}
-  end
+  f = %r{\A#{Regexp.escape(f)}} if f[-1, 1] == '/'
   f
 end
-puts "filters = #{filters.inspect}" if verbose
 
 ######################################################################
 
-file_changes = { }
-dir_changes = { }
-date_changes = { }
+counts = { }
 
 cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
 
-
 ######################################################################
 
-lines = 0
 File.popen(cmd, "r") do | f |
   until f.eof? # commits loop:
-    line = f.readline.chomp!; lines += 1
-    puts "read line #{lines}: #{line.inspect}" if verbose
-    commit_id, date, comment, branch_info, user = line.split(' | ')
-    if verbose
-      puts "  commit_id = #{commit_id.inspect}"
-      puts "  date = #{date.inspect}"
-      puts "  comment = #{comment.inspect}"
-      puts "  user = #{user.inspect}"
-    end
+    line = f.readline.chomp!
+    v = { }
+    commit_id, v[:date], v[:comment], v[:branch_info], v[:user] = 
+      line.split(' | ')
 
     files = [ ]
     until f.eof? # files in commit loop:
-      line = f.readline.chomp!; lines += 1
+      line = f.readline.chomp!
       break if line.empty?
-      puts "read line #{lines}: #{line.inspect}" if verbose
       file_name = line
       files << add_current_dir(file_name)
     end
 
-    puts "  files = #{files.inspect}" if verbose
     get_totals = true
-    if since
-      puts "  since=#{since.inspect} date=#{date.inspect}" if verbose
-      get_totals = false if date < since
-    end
-    puts "  get_totals=#{get_totals.inspect}" if verbose
-
+    get_totals = v[:date] >= since if since
     if get_totals
       files.each do | file_name |
-        if filters
-          unless filters.empty?
-            next unless filters.any? { | filter | filter === file_name }
-          end
+        if filters && !filters.empty?
+          next unless filters.any? { | filter | filter === file_name }
         end
 
-        date_changes[date] ||= 0
-        date_changes[date] += 1
+        v[:file] = file_name
+        v[:directory] = File.dirname(file_name)
 
-        file_changes[file_name] ||= 0
-        file_changes[file_name] += 1
-        
-        dir_name = File.dirname(file_name)
-        
-        dir_changes[dir_name] ||= 0
-        dir_changes[dir_name] += 1
+        v.each do | type, value |
+          (c = counts[type] ||= { })[value] ||= 0
+          c[value] += 1
+        end
       end
     end
   end
 end
 
-def print_totals hash, title, filters = nil
+######################################################################
+
+def print_counts hash, title
   title_printed = false
   hash.keys.sort.each do | name |
     n = hash[name]
@@ -113,9 +87,8 @@ def print_totals hash, title, filters = nil
   end
 end
 
-######################################################################
-
-print_totals file_changes, "Changes by file", filters
-print_totals dir_changes, "Changes by directory", filters
-print_totals date_changes, "Changes by date"
+types = [ :file, :directory, :date, :user, :comment, :branch_info ]
+types.each do | type |
+  print_counts counts[type], type
+end
 
