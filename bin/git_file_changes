@@ -1,16 +1,50 @@
 #!/usr/bin/env ruby
 require 'pp'
 
-filters = ARGV.dup
-file_changes = { }
-dir_changes = { }
 verbose = false
-cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
+
+######################################################################
 
 def add_current_dir file_name
   file_name = "./#{file_name}" unless file_name =~ %r{/}
   file_name
 end
+
+######################################################################
+
+filters = [ ]
+since = nil
+
+args = ARGV.dup
+until args.empty?
+  case arg = args.shift
+  when /^--since/
+    since = args.shift
+  else
+    filters << arg
+  end
+end
+
+#puts "filters = #{filters.inspect}" if verbose
+filters.map! do | f | 
+  f = add_current_dir f
+  if f[-1, 1] == '/'
+    f = %r{\A#{Regexp.escape(f)}}
+  end
+  f
+end
+puts "filters = #{filters.inspect}" if verbose
+
+######################################################################
+
+file_changes = { }
+dir_changes = { }
+date_changes = { }
+
+cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
+
+
+######################################################################
 
 lines = 0
 File.popen(cmd, "r") do | f |
@@ -24,46 +58,64 @@ File.popen(cmd, "r") do | f |
       puts "  comment = #{comment.inspect}"
       puts "  user = #{user.inspect}"
     end
+
+    files = [ ]
     until f.eof? # files in commit loop:
       line = f.readline.chomp!; lines += 1
       break if line.empty?
       puts "read line #{lines}: #{line.inspect}" if verbose
       file_name = line
-      file_name = add_current_dir file_name
-      file_changes[file_name] ||= 0
-      file_changes[file_name] += 1
+      files << add_current_dir(file_name)
+    end
 
-      dir_name = File.dirname(file_name)
-      dir_changes[dir_name] ||= 0
-      dir_changes[dir_name] += 1
+    puts "  files = #{files.inspect}" if verbose
+    get_totals = true
+    if since
+      puts "  since=#{since.inspect} date=#{date.inspect}" if verbose
+      get_totals = false if date < since
+    end
+    puts "  get_totals=#{get_totals.inspect}" if verbose
+
+    if get_totals
+      files.each do | file_name |
+        if filters
+          unless filters.empty?
+            next unless filters.any? { | filter | filter === file_name }
+          end
+        end
+
+        date_changes[date] ||= 0
+        date_changes[date] += 1
+
+        file_changes[file_name] ||= 0
+        file_changes[file_name] += 1
+        
+        dir_name = File.dirname(file_name)
+        
+        dir_changes[dir_name] ||= 0
+        dir_changes[dir_name] += 1
+      end
     end
   end
 end
 
-def print_totals hash, title, filters
+def print_totals hash, title, filters = nil
   title_printed = false
   hash.keys.sort.each do | name |
-    unless filters.empty?
-      next unless filters.any? { | f | f === name }
-    end
     n = hash[name]
+
     unless title_printed
       puts "#{title}:" 
       title_printed = true
     end
-    puts '%6d %s' % [ n, name ]
+
+    puts '%10d %s' % [ n, name ]
   end
 end
 
-#puts "filters = #{filters.inspect}" if verbose
-filters.map! do | f | 
-  f = add_current_dir f
-  if f[-1, 1] == '/'
-    f = %r{\A#{Regexp.escape(f)}}
-  end
-  f
-end
-puts "filters = #{filters.inspect}" if verbose
+######################################################################
+
 print_totals file_changes, "Changes by file", filters
 print_totals dir_changes, "Changes by directory", filters
+print_totals date_changes, "Changes by date"
 
