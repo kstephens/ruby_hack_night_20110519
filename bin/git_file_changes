@@ -1,11 +1,16 @@
 #!/usr/bin/env ruby
 require 'pp'
 
-#file_filters = ARGV.dup
+filters = ARGV.dup
 file_changes = { }
 dir_changes = { }
 verbose = false
 cmd = "git log --pretty=format:'%h | %ad | %s | %d | %an' --date=short --name-only"
+
+def add_current_dir file_name
+  file_name = "./#{file_name}" unless file_name =~ %r{/}
+  file_name
+end
 
 lines = 0
 File.popen(cmd, "r") do | f |
@@ -24,6 +29,7 @@ File.popen(cmd, "r") do | f |
       break if line.empty?
       puts "read line #{lines}: #{line.inspect}" if verbose
       file_name = line
+      file_name = add_current_dir file_name
       file_changes[file_name] ||= 0
       file_changes[file_name] += 1
 
@@ -34,15 +40,30 @@ File.popen(cmd, "r") do | f |
   end
 end
 
-def print_totals hash, title
-  puts "Changes by file:"
+def print_totals hash, title, filters
+  title_printed = false
   hash.keys.sort.each do | name |
+    unless filters.empty?
+      next unless filters.any? { | f | f === name }
+    end
     n = hash[name]
-    name = "./#{name}" unless name =~ %r{/}
+    unless title_printed
+      puts "#{title}:" 
+      title_printed = true
+    end
     puts '%6d %s' % [ n, name ]
   end
 end
 
-print_totals file_changes, "Changes by file:"
-print_totals dir_changes, "Changes by directory:"
+#puts "filters = #{filters.inspect}" if verbose
+filters.map! do | f | 
+  f = add_current_dir f
+  if f[-1, 1] == '/'
+    f = %r{\A#{Regexp.escape(f)}}
+  end
+  f
+end
+puts "filters = #{filters.inspect}" if verbose
+print_totals file_changes, "Changes by file", filters
+print_totals dir_changes, "Changes by directory", filters
 
